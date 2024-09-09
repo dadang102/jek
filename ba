@@ -1,0 +1,15 @@
+sudo apt-get install apt-transport-https curl gnupg -y
+curl -fsSL https://bazel.build/bazel-release.pub.gpg | gpg --dearmor >bazel-archive-keyring.gpg
+sudo mv bazel-archive-keyring.gpg /usr/share/keyrings/bazel-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/bazel-archive-keyring.gpg] https://storage.googleapis.com/bazel-apt stable jdk1.8" | sudo tee /etc/apt/sources.list.d/bazel.list
+sudo apt-get update && sudo apt-get install bazel
+
+bazel build -c opt --define MEDIAPIPE_DISABLE_GPU=1 mediapipe/examples/desktop/face_detection:face_detection_cpu
+bazel build -c opt --define MEDIAPIPE_DISABLE_GPU=1 mediapipe/python:build_pip_package
+
+mkdir -p mediapipe/dist
+python3 setup.py bdist_wheel
+sudo pip3 install mediapipe/dist/*.whl
+
+import mediapipe as mp
+mp_face_detection = mp.solutions.face_detection.FaceDetection()
