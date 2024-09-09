@@ -143,3 +143,142 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+#################################
+import cv2
+import numpy as np
+import tensorflow as tf
+import time
+import RPi.GPIO as GPIO
+
+# Setup GPIO
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(17, GPIO.OUT)  # Relay pin
+GPIO.setup(27, GPIO.OUT)  # Buzzer pin
+
+# Function to activate relay
+def activate_relay():
+    GPIO.output(17, GPIO.HIGH)  # Aktifkan relay
+    time.sleep(2)  # Durasi aktif
+    GPIO.output(17, GPIO.LOW)   # Matikan relay
+
+# Function to activate buzzer
+def activate_buzzer():
+    GPIO.output(27, GPIO.HIGH)  # Aktifkan buzzer
+    time.sleep(2)  # Durasi buzzer aktif
+    GPIO.output(27, GPIO.LOW)   # Matikan buzzer
+
+# Load the TFLite model and allocate tensors
+def load_tflite_model(model_path):
+    interpreter = tf.lite.Interpreter(model_path=model_path)
+    interpreter.allocate_tensors()
+    return interpreter
+
+# Preprocess the image for TFLite model input
+def preprocess_image(image):
+    image = cv2.resize(image, (224, 224))
+    image = image.astype(np.float32)
+    image = np.expand_dims(image, axis=0)
+    return image
+
+# Run inference with TFLite model
+def inference(interpreter, image):
+    input_details = interpreter.get_input_details()
+    output_details = interpreter.get_output_details()
+    interpreter.set_tensor(input_details[0]['index'], image)
+    interpreter.invoke()
+    output_data = interpreter.get_tensor(output_details[0]['index'])
+    return output_data
+
+# Function to detect faces
+def detect_faces(frame):
+    # Convert the frame to grayscale
+    gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+    # Apply Gaussian blur to reduce noise
+    blurred_frame = cv2.GaussianBlur(gray_frame, (5, 5), 0)
+
+    # Apply threshold to segment out the face
+    _, thresh = cv2.threshold(blurred_frame, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
+    # Find contours of the face
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    faces = []
+    for contour in contours:
+        area = cv2.contourArea(contour)
+        x, y, w, h = cv2.boundingRect(contour)
+        aspect_ratio = float(w) / h
+        if area > 1000 and aspect_ratio > 0.5 and aspect_ratio < 2:
+            faces.append((x, y, w, h))
+
+    return faces
+
+def main():
+    # Load TFLite model
+    model_path = '/home/pi/raspberry_proyek/data/models/face_recognition_model.tflite'
+    interpreter = load_tflite_model(model_path)
+
+    # Setup video capture
+    cap = cv2.VideoCapture(0)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)  # Set frame width
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)  # Set frame height
+
+    # Add an initial delay before starting detection
+    print("Waiting for 5 seconds...")
+    time.sleep(5)  # Delay selama 5 detik
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        # Detect faces in the frame
+        faces = detect_faces(frame)
+
+        for (x, y, w, h) in faces:
+            # Draw rectangle around the face
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+            # Crop the face from the frame
+            face = frame[y:y+h, x:x+w]
+
+            # Process 3 frames for more stable prediction
+            labels = []
+            for _ in range(7):
+                # Preprocess the face for the TFLite model
+                face_input = preprocess_image(face)
+
+                # Run inference
+                output = inference(interpreter, face_input)
+                
+                # Assuming the model output is a probability distribution, get the highest score
+                label = np.argmax(output)
+                labels.append(label)
+            
+            # Get the most common label from the 3 frames
+            final_label = max(set(labels), key=labels.count)
+            confidence_score = output[0][final_label]
+            label_text = f"User: {confidence_score:.2f}" if final_label == 1 else f"Maling: {confidence_score:.2f}"
+            cv2.putText(frame, label_text, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+            # Activate relay or buzzer based on final_label
+            if final_label == 1:
+                activate_relay()  # Jika wajah dikenali
+            else:
+                activate_buzzer()  # Jika wajah tidak dikenali
+
+        # Show the frame with the face detection and recognition results
+        cv2.imshow('Face Detection and Recognition', frame)
+
+        # Press 'q' to quit the loop
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    # Release resources
+    cap.release()
+    cv2.destroyAllWindows()
+    GPIO.cleanup()  # Clean up GPIO
+
+if __name__ == '__main__':
+    main()
