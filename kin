@@ -6,124 +6,6 @@ import RPi.GPIO as GPIO
 
 # Setup GPIO
 RELAY_PIN = 17  # Ganti sesuai dengan pin relay
-BUZZER_PIN = 27  # Ganti sesuai dengan pin buzzer
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(RELAY_PIN, GPIO.OUT)
-GPIO.setup(BUZZER_PIN, GPIO.OUT)
-GPIO.output(RELAY_PIN, GPIO.LOW)
-GPIO.output(BUZZER_PIN, GPIO.LOW)
-
-# Load the TFLite model and allocate tensors
-def load_tflite_model(model_path):
-    interpreter = tflite.Interpreter(model_path=model_path)
-    interpreter.allocate_tensors()
-    return interpreter
-
-# Preprocess the image for TFLite model input
-def preprocess_image(image):
-    image = cv2.resize(image, (224, 224))
-    image = image.astype(np.float32)
-    image = np.expand_dims(image, axis=0)
-    return image
-
-# Run inference with TFLite model
-def inference(interpreter, image):
-    input_details = interpreter.get_input_details()
-    output_details = interpreter.get_output_details()
-    interpreter.set_tensor(input_details[0]['index'], image)
-    interpreter.invoke()
-    output_data = interpreter.get_tensor(output_details[0]['index'])
-    return output_data
-
-# Detect faces using Haar Cascade
-def detect_faces(frame, face_cascade):
-    faces = face_cascade.detectMultiScale(frame, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
-    return faces
-
-def main():
-    # Load TFLite model
-    model_path = '/home/fadli/projek/model_face.tflite'
-    interpreter = load_tflite_model(model_path)
-
-    # Load pre-trained Haar Cascade model
-    face_cascade = cv2.CascadeClassifier('/home/fadli/projek/haarcascade_frontalface_default.xml')
-
-    # Setup video capture
-    cap = cv2.VideoCapture(0)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 160)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 120)
-    cap.set(cv2.CAP_PROP_FPS, 30)  # Set FPS to 30
-
-    frame_counter = 0
-    processed_frames = 0
-    labels = []
-
-    while processed_frames < 5:  # Proses hanya 5 frame yang dipilih
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        frame_counter += 1
-
-        # Proses hanya setiap 6 frame (misalnya setiap 6 frame dari 30 fps untuk 5 fps)
-        if frame_counter % 6 == 0:
-            processed_frames += 1
-            faces = detect_faces(frame, face_cascade)
-
-            for (x, y, w, h) in faces:
-                # Draw rectangle around the face
-                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-
-                # Crop the face from the frame
-                face = frame[y:y+h, x:x+w]
-
-                # Preprocess and infer
-                face_input = preprocess_image(face)
-                output = inference(interpreter, face_input)
-
-                label = np.argmax(output)
-                labels.append(label)  # Collecting labels for 5 frames
-
-        # Show the frame to keep video smooth
-        cv2.imshow('Video', frame)
-
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-
-    # Setelah 5 frame
-    cap.release()
-    cv2.destroyAllWindows()
-
-    # Determine the final label (user or maling)
-    final_label = max(set(labels), key=labels.count)
-    confidence_score = output[0][final_label]
-
-    if final_label == 1:  # User recognized
-        print(f"User recognized with confidence {confidence_score:.2f}")
-        GPIO.output(RELAY_PIN, GPIO.HIGH)  # Aktifkan relay
-        GPIO.output(BUZZER_PIN, GPIO.LOW)  # Pastikan buzzer mati
-        time.sleep(5)  # Relay aktif selama 5 detik (bisa diubah jadi 10 detik jika perlu)
-        GPIO.output(RELAY_PIN, GPIO.LOW)  # Matikan relay setelah 5 detik
-    else:  # Intruder (maling) detected
-        print(f"Maling detected with confidence {confidence_score:.2f}")
-        GPIO.output(RELAY_PIN, GPIO.LOW)  # Pastikan relay mati
-        GPIO.output(BUZZER_PIN, GPIO.HIGH)  # Aktifkan buzzer
-
-    # Reset GPIO pins after execution
-    GPIO.cleanup()
-
-if _name_ == '_main_':
-    main()
-
-
-import cv2
-import numpy as np
-import tflite_runtime.interpreter as tflite
-import time
-import RPi.GPIO as GPIO
-
-# Setup GPIO
-RELAY_PIN = 17  # Ganti sesuai dengan pin relay
 BUZZER_PIN = 18  # Ganti sesuai dengan pin buzzer
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)
@@ -277,3 +159,141 @@ try:
 finally:
     GPIO.cleanup()  # Bersihkan pengaturan GPIO setelah eksekusi
 
+import RPi.GPIO as GPIO
+import time
+
+# Setup GPIO pin for relay
+RELAY_PIN = 17
+GPIO.setwarnings(False)
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(RELAY_PIN, GPIO.OUT)
+
+try:
+    while True:
+        GPIO.output(RELAY_PIN, GPIO.HIGH)  # Aktifkan relay
+        print("Relay ON")
+        time.sleep(5)  # Relay aktif selama 5 detik
+        
+        GPIO.output(RELAY_PIN, GPIO.LOW)  # Matikan relay
+        print("Relay OFF")
+        time.sleep(5)  # Relay mati selama 5 detik
+
+except KeyboardInterrupt:
+    GPIO.cleanup()
+
+# Setup GPIO
+RELAY_PIN = 17  # Ganti sesuai dengan pin relay
+BUZZER_PIN = 18  # Ganti sesuai dengan pin buzzer
+GPIO.setwarnings(False)
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(RELAY_PIN, GPIO.OUT)
+GPIO.setup(BUZZER_PIN, GPIO.OUT)
+GPIO.output(RELAY_PIN, GPIO.LOW)
+GPIO.output(BUZZER_PIN, GPIO.LOW)
+
+# Load the TFLite model and allocate tensors
+def load_tflite_model(model_path):
+    interpreter = tflite.Interpreter(model_path=model_path)
+    interpreter.allocate_tensors()
+    return interpreter
+
+# Preprocess the image for TFLite model input
+def preprocess_image(image):
+    image = cv2.resize(image, (224, 224))
+    image = image.astype(np.float32)
+    image = np.expand_dims(image, axis=0)
+    return image
+
+# Run inference with TFLite model
+def inference(interpreter, image):
+    input_details = interpreter.get_input_details()
+    output_details = interpreter.get_output_details()
+    interpreter.set_tensor(input_details[0]['index'], image)
+    interpreter.invoke()
+    output_data = interpreter.get_tensor(output_details[0]['index'])
+    return output_data
+
+# Detect faces using Haar Cascade
+def detect_faces(frame, face_cascade):
+    faces = face_cascade.detectMultiScale(frame, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+    return faces
+
+def main():
+    # Load TFLite model
+    model_path = '/home/fadli/projek/face_recognition_model.tflite'
+    interpreter = load_tflite_model(model_path)
+
+    # Load pre-trained Haar Cascade model
+    face_cascade = cv2.CascadeClassifier('/home/fadli/projek/haarcascade_frontalface_default.xml')
+
+    # Setup video capture
+    cap = cv2.VideoCapture(0)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
+    cap.set(cv2.CAP_PROP_FPS, 30)
+
+    frame_counter = 0
+    processed_frames = 0
+    labels = []
+
+    while processed_frames < 5:  # Proses hanya 5 frame yang dipilih
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        frame_counter += 1
+
+        # Proses hanya setiap 6 frame (misalnya setiap 6 frame dari 30 fps untuk 5 fps)
+        if frame_counter % 6 == 0:
+            processed_frames += 1
+            faces = detect_faces(frame, face_cascade)
+
+            for (x, y, w, h) in faces:
+                # Draw rectangle around the face
+                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+                # Crop the face from the frame
+                face = frame[y:y+h, x:x+w]
+
+                # Preprocess and infer
+                face_input = preprocess_image(face)
+                output = inference(interpreter, face_input)
+
+                label = np.argmax(output)
+                labels.append(label)  # Collecting labels for 5 frames
+
+        # Show the frame to keep video smooth
+        cv2.imshow('Video', frame)
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    # Setelah 5 frame
+    cap.release()
+    cv2.destroyAllWindows()
+
+    # Determine the final label (user or maling)
+    final_label = max(set(labels), key=labels.count)
+    
+    # Infer again for confidence score after determining the final label
+    final_output = inference(interpreter, preprocess_image(face))
+    confidence_score = final_output[0][final_label]
+
+    if final_label == 1:  # User recognized
+        print(f"User recognized with confidence {confidence_score:.2f}")
+        GPIO.output(RELAY_PIN, GPIO.HIGH)  # Aktifkan relay untuk user
+        GPIO.output(BUZZER_PIN, GPIO.LOW)  # Pastikan buzzer mati
+        time.sleep(5)  # Relay aktif selama 5 detik
+        GPIO.output(RELAY_PIN, GPIO.LOW)  # Matikan relay setelah 5 detik
+    else:  # Intruder (maling) detected
+        print(f"Maling detected with confidence {confidence_score:.2f}")
+        GPIO.output(BUZZER_PIN, GPIO.HIGH)  # Aktifkan buzzer untuk maling
+        GPIO.output(RELAY_PIN, GPIO.LOW)  # Pastikan relay mati
+        time.sleep(5)  # Buzzer aktif selama 5 detik
+        GPIO.output(BUZZER_PIN, GPIO.LOW)  # Matikan buzzer setelah 5 detik
+
+    # Reset GPIO pins after execution
+    GPIO.cleanup()
+
+if __name__ == '__main__':
+    main()
