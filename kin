@@ -235,3 +235,34 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+import RPi.GPIO as GPIO
+import time
+
+RELAY_PIN = 17
+BUZZER_PIN = 18
+
+GPIO.setwarnings(False)
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(RELAY_PIN, GPIO.OUT)
+GPIO.setup(BUZZER_PIN, GPIO.OUT)
+
+try:
+    print("Testing Relay and Buzzer...")
+    # Aktifkan relay selama 5 detik
+    GPIO.output(RELAY_PIN, GPIO.HIGH)
+    print("Relay ON")
+    time.sleep(5)
+    GPIO.output(RELAY_PIN, GPIO.LOW)
+    print("Relay OFF")
+    
+    # Aktifkan buzzer selama 5 detik
+    GPIO.output(BUZZER_PIN, GPIO.HIGH)
+    print("Buzzer ON")
+    time.sleep(5)
+    GPIO.output(BUZZER_PIN, GPIO.LOW)
+    print("Buzzer OFF")
+    
+finally:
+    GPIO.cleanup()
