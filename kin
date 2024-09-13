@@ -248,21 +248,32 @@ GPIO.setmode(GPIO.BCM)
 GPIO.setup(RELAY_PIN, GPIO.OUT)
 GPIO.setup(BUZZER_PIN, GPIO.OUT)
 
+import RPi.GPIO as GPIO
+
+# Daftar pin GPIO yang ingin dicek (sesuaikan dengan pin yang digunakan)
+GPIO_PINS = [17, 18, 22, 23]  # Tambahkan pin GPIO lain jika perlu
+
+# Setup GPIO
+GPIO.setwarnings(False)
+GPIO.setmode(GPIO.BCM)
+
+# Inisialisasi semua pin sebagai output
+for pin in GPIO_PINS:
+    GPIO.setup(pin, GPIO.OUT)
+
+def check_and_disable_pins():
+    for pin in GPIO_PINS:
+        # Cek status pin, apakah HIGH (aktif) atau LOW (tidak aktif)
+        pin_status = GPIO.input(pin)
+        if pin_status == GPIO.HIGH:
+            print(f"Pin {pin} is HIGH, turning it OFF...")
+            GPIO.output(pin, GPIO.LOW)  # Matikan pin (atur ke LOW)
+        else:
+            print(f"Pin {pin} is already LOW.")
+
 try:
-    print("Testing Relay and Buzzer...")
-    # Aktifkan relay selama 5 detik
-    GPIO.output(RELAY_PIN, GPIO.HIGH)
-    print("Relay ON")
-    time.sleep(5)
-    GPIO.output(RELAY_PIN, GPIO.LOW)
-    print("Relay OFF")
-    
-    # Aktifkan buzzer selama 5 detik
-    GPIO.output(BUZZER_PIN, GPIO.HIGH)
-    print("Buzzer ON")
-    time.sleep(5)
-    GPIO.output(BUZZER_PIN, GPIO.LOW)
-    print("Buzzer OFF")
-    
+    check_and_disable_pins()
+
 finally:
-    GPIO.cleanup()
+    GPIO.cleanup()  # Bersihkan pengaturan GPIO setelah eksekusi
+
